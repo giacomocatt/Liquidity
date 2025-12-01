@@ -79,13 +79,14 @@ liq = 'turnover'
 def panel_regression(df):
     df = df.set_index(['cusip_id', 'trd_exctn_dt'])
     dep = df[['cs']]
-    exog = sm.add_constant(df[[liq,'ttm', 
+    exog = sm.add_constant(df[[liq,
+                               'ttm', 
                             'opmbd', 'roa', 'debt_capital', 'debt_ebitda',
                'cash_ratio', 'intcov_ratio', 'curr_ratio', 
                'roa_lag', 'debt_capital_lag', 'opmbd_lag', 'cash_ratio_lag', 'intcov_ratio_lag','curr_ratio_lag', 
                'roa_lag_2', 'debt_capital_lag_2', 'opmbd_lag_2','cash_ratio_lag_2', 'intcov_ratio_lag_2', 'curr_ratio_lag_2',
-               'roa_lag_3', 'debt_capital_lag_3', 'opmbd_lag_3', 'cash_ratio_lag_3','intcov_ratio_lag_3', 'curr_ratio_lag_3',
-               'roa_lag_4', 'debt_capital_lag_4', 'opmbd_lag_4', 'cash_ratio_lag_4','intcov_ratio_lag_4', 'curr_ratio_lag_4', 
+               #'roa_lag_3', 'debt_capital_lag_3', 'opmbd_lag_3', 'cash_ratio_lag_3','intcov_ratio_lag_3', 'curr_ratio_lag_3',
+               #'roa_lag_4', 'debt_capital_lag_4', 'opmbd_lag_4', 'cash_ratio_lag_4','intcov_ratio_lag_4', 'curr_ratio_lag_4', 
                'short_r', 'slope', 'stock_pr', 'vix', 'ice_bofa_hy_spread']])
     model = PanelOLS(dep, exog, entity_effects=False, drop_absorbed=True)
     return model
@@ -93,10 +94,10 @@ def panel_regression(df):
 def iv_regression(df):
     df = df.set_index(['cusip_id', 'trd_exctn_dt'])
     dep = df[['cs']][df[liq]>0]
-    endog = -np.log(df[liq][df[liq]>0])
+    endog = df[liq]#-np.log(df[liq][df[liq]>0])
     exog = sm.add_constant(df[['ttm', 
-                            #'opmbd', 'roa', 'debt_capital', 'debt_ebitda',
-               #'cash_ratio', 'intcov_ratio', 'curr_ratio', 
+                            'opmbd', 'roa', 'debt_capital', 'debt_ebitda',
+               'cash_ratio', 'intcov_ratio', 'curr_ratio', 
                'roa_lag', 'debt_capital_lag', 'opmbd_lag', 'cash_ratio_lag', 'intcov_ratio_lag','curr_ratio_lag', 
                'roa_lag_2', 'debt_capital_lag_2', 'opmbd_lag_2','cash_ratio_lag_2', 'intcov_ratio_lag_2', 'curr_ratio_lag_2',
                #'roa_lag_3', 'debt_capital_lag_3', 'opmbd_lag_3', 'cash_ratio_lag_3','intcov_ratio_lag_3', 'curr_ratio_lag_3',
@@ -118,7 +119,8 @@ results = []
 for key, model in pooled_models.items():
     conf_int = model.conf_int().loc[liq]
     estimate = model.params[liq]
-    results.append({'month': key[0], 'year': key[1], 'estimate': estimate, 'lower': conf_int[0], 'upper': conf_int[1]})
+    r2       = model.rsquared
+    results.append({'month': key[0], 'year': key[1], 'estimate': estimate, 'lower': conf_int[0], 'upper': conf_int[1], 'R-sq': r2})
 
 results_df = pd.DataFrame(results)
 results_df.sort_values(['year', 'month'], inplace=True)
@@ -160,7 +162,7 @@ for event_date, event_label in significant_events.items():
              event_label, color='black',
              verticalalignment='bottom', horizontalalignment='center', rotation=45, fontsize=9)
 # Customize the plot
-plt.title("Exposure of Credit Spread to Liquidity Over Time, Turnover", fontsize=14)
+plt.title("Exposure of Credit Spread to Liquidity Over Time", fontsize=14)
 plt.xlabel("Time", fontsize=12)
 plt.ylabel(r"$\beta$", fontsize=12)
 plt.legend()
@@ -176,8 +178,8 @@ plt.show()
 precovid_df = results_df[(results_df['time'] >= '2009-01-01') & (results_df['time'] <= '2019-12-31')]
 postcovid_df = results_df[results_df['time'] > '2019-12-31']
 plt.figure(figsize=(12, 6))
-ax1 = sns.lineplot(x='time', y='estimate', data=precovid_df, label='Estimate', color='blue')
-plt.fill_between(precovid_df['time'], precovid_df['lower'], precovid_df['upper'], color='blue', alpha=0.2, label='Confidence Interval')
+ax1 = sns.lineplot(x='time', y='estimate', data=results_df, label='Estimate', color='blue')
+plt.fill_between(results_df['time'], results_df['lower'], results_df['upper'], color='blue', alpha=0.2, label='Confidence Interval')
 
 # Customize primary y-axis
 ax1.set_ylabel(r'$\beta$', fontsize=12)
@@ -187,7 +189,7 @@ plt.xticks(rotation=45)
 # Create a secondary y-axis and plot the second and third time series
 ax2 = ax1.twinx()
 #sns.lineplot(x='time', y='short_r', data=resultss_df, label='Yield Curve Level', color='red', ax=ax2)
-sns.lineplot(x='time', y='slope', data=precovid_df, label='10Y-3Mo Treasury Spread', color='green', ax=ax2)
+sns.lineplot(x='time', y='slope', data=results_df, label='10Y-3Mo Treasury Spread', color='green', ax=ax2)
 
 # Customize the secondary y-axis
 ax2.set_ylabel('Percentage points', fontsize=12)
@@ -197,7 +199,7 @@ ax1.legend(loc='upper left')
 ax2.legend(loc='upper right')
 
 # Display the plot
-plt.title("Liquidity Exposure and Yield Curve Slope, Turnover", fontsize=14)
+plt.title("Liquidity Exposure and Yield Curve Slope", fontsize=14)
 year_ticks = pd.date_range(start='2007-06-01', end='2021-12-31', freq='YS')
 plt.xticks(year_ticks, year_ticks.strftime('%Y'), rotation=45)
 plt.grid(True)
@@ -233,9 +235,13 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
+results_df = pd.read_csv('results_negative_log_turn.csv')
+results_df['time'] = pd.to_datetime(results_df['time'])
+results_df = results_df[(results_df['time'] >= '2007-06-01' )]
 results_df = sm.add_constant(results_df).dropna()
+results_df['log_price'] = np.log(results_df['stock_pr'])
 check = sm.OLS(results_df['estimate'], 
-            results_df[['const','short_r','stock_pr','slope', 'vix']]).fit()
+            results_df[['const','short_r','slope','nasdaq', 'vix']]).fit()
 print(check.summary())
 from stargazer.stargazer import Stargazer
 
@@ -244,7 +250,7 @@ latex_output = stargazer.render_latex()
 
 print(latex_output)
 
-results_df = pd.read_csv('beta_turn_results.csv')
+results_df = pd.read_csv('beta_pc1_results.csv')
 mp_df = pd.read_excel('MPshocksAcosta.xlsx', sheet_name='shocks')
 mp_df['month'] = mp_df['fomc'].apply(lambda x: x.replace(day=1))
 results_df['time'] = pd.to_datetime(results_df['time'])

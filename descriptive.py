@@ -27,8 +27,8 @@ def categorize_rating(rating):
     return result
 
 df['investment_grade'] = df['rating'].apply(categorize_rating)
-df['log_ba'] = np.log(df[df['ba_c'] > 0]['ba_c'])
-df['_log_turnover'] = -np.log(df[df['turnover'] > 0]['turnover'])
+df['log_ba'] = (df[df['ba_c'] > 0]['ba_c'] - np.mean(df[df['ba_c'] > 0]['ba_c']))/np.mean(df[df['ba_c'] > 0]['ba_c'])
+df['_log_turnover'] = (df[df['turnover'] > 0]['turnover'] - np.mean(df[df['turnover'] > 0]['turnover']))/np.mean(df[df['turnover'] > 0]['turnover'])
 
 risk_classes = [
     ('AAA-A' , 'royalblue'),
@@ -43,7 +43,7 @@ variables = [
 
 df_neg = df[(df['cs'] < 0)]
 #df = df[(df['n_trades'] <= np.percentile(df['n_trades'],99))]
-df = df[(df['turnover'] >= 0) & (df['turnover'] <= np.percentile(df['turnover'], 95))]
+df = df[(df['ba_c'] >= 0) & (df['ba_c'] <= 25)]
 df = df[(df['cs'] >= 0) & (df['cs'] <= np.percentile(df['cs'], 99))]
 #plt.hist(np.log(df['ba_c'][df['ba_c']>0]), bins = 100)
 #plt.show()
@@ -118,6 +118,63 @@ df = df[(df['ba_c'] >= 0) & (df['ba_c'] <= 25)]
 plt.figure(figsize=(8,6))
 scatter = plt.scatter(np.log(df['turnover']), df['ba_c'], c=df['riskiness'],
             cmap='viridis', alpha=0.7, edgecolors='k', s= 10)
+plt.xlabel("Turnover")
+plt.ylabel("Bid-Ask Spread")
+plt.grid(True)
+plt.show()
+
+from scipy.stats import kurtosis, skew
+variables = ['cs', 'ba_c', 'turnover']
+
+# Group by investment grade and compute stats
+def summarize(group):
+    summary = {}
+    for var in variables:
+        vals = group[var].dropna()
+        summary[f'{var}_mean'] = vals.mean()
+        summary[f'{var}_std'] = vals.std()
+        summary[f'{var}_p25'] = vals.quantile(0.25)
+        summary[f'{var}_p50'] = vals.median()
+        summary[f'{var}_p75'] = vals.quantile(0.75)
+        summary[f'{var}_kurtosis'] = kurtosis(vals)
+        summary[f'{var}_skewness'] = skew(vals)
+    return pd.Series(summary)
+
+summary_df = df.groupby('investment_grade').apply(summarize)
+summary_df_transposed = summary_df.T
+
+latex_table = summary_df_transposed.round(3).to_latex(index=True, caption='Summary statistics by investment grade', label='tab:summary_stats_transposed')
+
+with open("summary_stats_table_transposed.tex", "w") as f:
+    f.write(latex_table)
+
+
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
+df = df.dropna(subset='ba_c')
+df['log_turnover_neg'] = -np.log(df['turnover'])
+df['neg_ba'] = -df['ba_c']
+scaler = StandardScaler()
+X = scaler.fit_transform(df[['turnover', 'ba_c']])
+X[:, 1] *= -1  # Invert spread axis before PCA (same logic as above)
+
+pca = PCA(n_components=1)
+df['liqq'] = pca.fit_transform(X)
+
+
+pca = PCA(n_components=2)
+pcs = pca.fit_transform(X)
+
+df['log_liq_w'] = pca.explained_variance_ratio_[0] * pcs[:, 0] +  pca.explained_variance_ratio_[1] * pcs[:, 1] 
+
+plt.hist(df['liq_w'], bins = 100)
+plt.show()
+
+plt.figure(figsize=(8,6))
+scatter = plt.scatter(pcs[:, 0], pcs[:, 1], 
+                      #c=df['riskiness'], cmap='viridis', 
+                      alpha=0.7, edgecolors='k', s= 10)
 plt.xlabel("Turnover")
 plt.ylabel("Bid-Ask Spread")
 plt.grid(True)
