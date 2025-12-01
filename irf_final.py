@@ -76,7 +76,7 @@ def local_projections(data, response_var, control_vars, shock_var, max_horizon, 
         y = regression_data[f'{response_var}_shifted']
         
         # Run the OLS regression
-        model = PanelOLS(y, X, entity_effects=False)
+        model = PanelOLS(y, X, entity_effects=True)
         results = model.fit()
         
         # Extract the coefficient and standard error for the shock variable
@@ -135,12 +135,12 @@ response_vars = ['yield_'
                  , 'cs'
                  , 'price']
 
-control_vars = ['ttm'], 
+control_vars = ['ttm', 
                 #'roa', 'debt_capital', 'opmbd', 'cash_ratio', 'intcov_ratio','curr_ratio', 
                 'short_r', 
                 'slope'
                 ,'vix'
-                , 'stock_pr'
+                #, 'stock_pr'
                 #,'ice_bofa_hy_spread'
                 ]
 max_horizon = 45
