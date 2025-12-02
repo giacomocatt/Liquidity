@@ -60,6 +60,10 @@ def local_projections(data, response_var, control_vars, shock_var, max_horizon, 
         data[f'{response_var}_shifted'] = data[response_var].shift(-h)
         regression_data = data.dropna(subset=[f'{response_var}_shifted', shock_var] + control_vars)
         regression_data = regression_data.set_index(['cusip_id','trd_exctn_dt'])
+        regression_data[control_vars] = (
+                                regression_data.groupby(level="cusip_id")[control_vars]
+                                .shift(1)
+                                )
         regression_data['HY_high'] = ((regression_data['liquidity_portfolio'] == 'high')*(regression_data['ig_hy'] == 'HY')).astype(int)
         regression_data['HY_low'] = ((regression_data['liquidity_portfolio'] == 'low')*(regression_data['ig_hy'] == 'HY')).astype(int)
         regression_data['IG_high'] = ((regression_data['liquidity_portfolio'] == 'high')*(regression_data['ig_hy'] == 'IG')).astype(int)
